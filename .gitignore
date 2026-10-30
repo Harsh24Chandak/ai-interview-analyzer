@@ -20,3 +20,6 @@ node_modules/
 frontend/node_modules/
 frontend/dist/
 .DS_Store
+
+# Reference design exports
+design/

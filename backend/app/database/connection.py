@@ -202,10 +202,38 @@ def db_session():
         conn.close()
 
 
+
+
+def _get_table_columns(conn: sqlite3.Connection, table_name: str) -> List[str]:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return [r["name"] if isinstance(r, sqlite3.Row) else r[1] for r in rows]
+
+
+def run_safe_migrations(conn: sqlite3.Connection) -> None:
+    """Safely inspect existing SQLite tables via PRAGMA table_info and add V4 columns without losing records."""
+    session_cols = _get_table_columns(conn, "interview_sessions")
+    if session_cols and "company_style" not in session_cols:
+        conn.execute(
+            "ALTER TABLE interview_sessions ADD COLUMN company_style TEXT NOT NULL DEFAULT 'High-Growth SaaS'"
+        )
+
+    answer_cols = _get_table_columns(conn, "interview_answers")
+    if answer_cols:
+        if "code_snippet" not in answer_cols:
+            conn.execute(
+                "ALTER TABLE interview_answers ADD COLUMN code_snippet TEXT NOT NULL DEFAULT ''"
+            )
+        if "star_telemetry" not in answer_cols:
+            conn.execute(
+                "ALTER TABLE interview_answers ADD COLUMN star_telemetry TEXT NOT NULL DEFAULT '{}'"
+            )
+
+
 def init_db() -> None:
     """Initialize all relational tables and seed the demo account if not present."""
     with db_session() as conn:
         conn.executescript(SCHEMA_SQL)
+        run_safe_migrations(conn)
         cur = conn.execute("SELECT id FROM users WHERE email = ?", ("demo@aiinterview.dev",))
         existing = cur.fetchone()
         if not existing:

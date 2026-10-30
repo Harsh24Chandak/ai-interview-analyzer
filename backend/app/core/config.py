@@ -1,8 +1,8 @@
 """Application configuration loaded from environment variables."""
 import os
+import sqlite3
 from pathlib import Path
 
-# Load .env file manually if python-dotenv is not installed
 env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 if env_path.exists():
     with open(env_path, "r", encoding="utf-8") as f:
@@ -15,7 +15,7 @@ if env_path.exists():
 
 class Settings:
     PROJECT_NAME: str = "AI Interview Analyzer API"
-    VERSION: str = "2.0.0"
+    VERSION: str = "4.2.0"
     API_PREFIX: str = "/api"
 
     SECRET_KEY: str = os.getenv("SECRET_KEY", "ai-interview-analyzer-academic-secret-key-2026-secure")
@@ -27,9 +27,12 @@ class Settings:
 
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'ai_interview_analyzer.db'}")
+
     @property
     def SQLITE_PATH(self) -> str:
-        import sqlite3
+        explicit_test_db = os.getenv("TEST_SQLITE_PATH", "").strip()
+        if explicit_test_db:
+            return explicit_test_db
         candidate = str(self.BASE_DIR / "ai_interview_analyzer.db")
         try:
             conn = sqlite3.connect(candidate)

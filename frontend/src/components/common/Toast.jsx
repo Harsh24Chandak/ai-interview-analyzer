@@ -44,3 +44,5 @@ export function ToastProvider({ children }) {
 }
 
 export const useToast = () => useContext(ToastContext) || { showToast: () => {} };
+
+export default ToastProvider;

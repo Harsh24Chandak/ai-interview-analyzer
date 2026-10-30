@@ -2,20 +2,50 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+export function getStoredToken() {
+  try {
+    return localStorage.getItem('token') || sessionStorage.getItem('token');
+  } catch (e) {
+    return null;
+  }
+}
+
+export function setStoredToken(token, remember = true) {
+  try {
+    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
+    if (token) {
+      if (remember) {
+        localStorage.setItem('token', token);
+      } else {
+        sessionStorage.setItem('token', token);
+      }
+    }
+  } catch (e) {}
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 25000,
 });
 
 api.interceptors.request.use((config) => {
-  try {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  } catch (e) {}
+  const token = getStoredToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      setStoredToken(null);
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),

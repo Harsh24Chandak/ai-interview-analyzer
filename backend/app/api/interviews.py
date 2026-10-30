@@ -34,6 +34,8 @@ def _assemble_session_detail(conn, session_id: int, user_id: int) -> Dict[str, A
         row_to_dict(s_row),
         ["strengths", "weaknesses", "recommended_topics"],
     )
+    if not session_dict.get("company_style"):
+        session_dict["company_style"] = "High-Growth SaaS"
 
     q_rows = conn.execute(
         "SELECT * FROM interview_questions WHERE session_id = ? ORDER BY question_number ASC, id ASC",
@@ -44,7 +46,14 @@ def _assemble_session_detail(conn, session_id: int, user_id: int) -> Dict[str, A
         "SELECT * FROM interview_answers WHERE session_id = ?",
         (session_id,),
     ).fetchall()
-    answers_by_q = {r["question_id"]: row_to_dict(r) for r in a_rows}
+    answers_by_q = {}
+    for r in a_rows:
+        ad = parse_json_fields(row_to_dict(r), ["star_telemetry"])
+        if not isinstance(ad.get("star_telemetry"), dict):
+            ad["star_telemetry"] = {}
+        if ad.get("code_snippet") is None:
+            ad["code_snippet"] = ""
+        answers_by_q[r["question_id"]] = ad
 
     e_rows = conn.execute(
         "SELECT * FROM interview_evaluations WHERE session_id = ?",
@@ -82,9 +91,10 @@ def start_interview_session(
     req: StartInterviewRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Create a new AI mock interview session and generate contextual questions."""
+    """Create a new AI mock interview session and generate contextual questions calibrated to company_style."""
     user_id = current_user["id"]
     now = datetime.utcnow().isoformat()
+    company_style = (getattr(req, "company_style", None) or "High-Growth SaaS").strip()
 
     with db_session() as conn:
         if req.resume_id:
@@ -122,14 +132,15 @@ def start_interview_session(
             question_count=req.question_count,
             resume_text=resume_text,
             jd_text=jd_text,
+            company_style=company_style,
         )
 
         cur_s = conn.execute(
             """
             INSERT INTO interview_sessions (
                 user_id, job_role, experience_level, interview_type, difficulty,
-                question_count, resume_id, job_description_id, status, ai_provider, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                company_style, question_count, resume_id, job_description_id, status, ai_provider, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -137,6 +148,7 @@ def start_interview_session(
                 req.experience_level.strip(),
                 req.interview_type.strip(),
                 req.difficulty.strip(),
+                company_style,
                 len(questions),
                 resume_id,
                 jd_id,
@@ -181,9 +193,10 @@ def submit_and_evaluate_answer(
     req: SubmitAnswerRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Submit a text or voice transcript answer, run 7-dimension AI evaluation, and optionally generate a follow-up question."""
+    """Submit a text or voice transcript answer (with optional code_snippet), persist STAR telemetry, and evaluate."""
     user_id = current_user["id"]
     now = datetime.utcnow().isoformat()
+    code_clean = (getattr(req, "code_snippet", None) or "").strip()
 
     with db_session() as conn:
         s_row = conn.execute(
@@ -201,12 +214,13 @@ def submit_and_evaluate_answer(
             raise HTTPException(status_code=404, detail="Question not found in this interview session.")
 
         q_dict = parse_json_fields(row_to_dict(q_row), ["expected_key_points"])
-        combined_ans = req.answer_text.strip() + (f"\n\n[Submitted Code / Architecture]:\n{req.code_snippet.strip()}" if getattr(req, "code_snippet", None) and req.code_snippet.strip() else "")
+        combined_ans = req.answer_text.strip() + (
+            f"\n\n[Submitted Code / Architecture]:\n{code_clean}" if code_clean else ""
+        )
         filler_info = count_filler_words(req.answer_text)
-        star_telemetry = analyze_star_and_telemetry(req.answer_text, req.time_taken_seconds, getattr(req, "code_snippet", "") or "")
+        star_telemetry = analyze_star_and_telemetry(req.answer_text, req.time_taken_seconds, code_clean)
         word_count = len(req.answer_text.strip().split())
 
-        # Upsert answer if re-submitting
         existing_ans = conn.execute(
             "SELECT id FROM interview_answers WHERE question_id = ?",
             (req.question_id,),
@@ -219,8 +233,9 @@ def submit_and_evaluate_answer(
             """
             INSERT INTO interview_answers (
                 session_id, question_id, user_id, answer_text, answer_mode,
-                time_taken_seconds, filler_word_count, word_count, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                time_taken_seconds, filler_word_count, word_count,
+                code_snippet, star_telemetry, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 session_id,
@@ -231,6 +246,8 @@ def submit_and_evaluate_answer(
                 req.time_taken_seconds,
                 filler_info["total"],
                 word_count,
+                code_clean,
+                json.dumps(star_telemetry),
                 now,
             ),
         )
@@ -389,8 +406,9 @@ def complete_interview_session(
             strengths = list(dict.fromkeys(strengths_acc))[:4]
             weaknesses = list(dict.fromkeys(weaknesses_acc))[:4]
             topics = list(dict.fromkeys(topics_acc))[:5]
+            company_style = s_row["company_style"] if "company_style" in s_row.keys() and s_row["company_style"] else "High-Growth SaaS"
             summary = (
-                f"Completed {n} evaluated question(s) for {s_row['job_role']} ({s_row['interview_type']} - {s_row['difficulty']}) "
+                f"Completed {n} evaluated question(s) for {s_row['job_role']} ({s_row['interview_type']} • {s_row['difficulty']} • {company_style}) "
                 f"with an overall score of {overall}/100 (Technical: {tech}%, Communication: {comm}%, Problem Solving: {prob}%)."
             )
 
@@ -457,9 +475,12 @@ def list_bookmarked_questions(current_user: dict = Depends(get_current_user)):
     with db_session() as conn:
         rows = conn.execute(
             """
-            SELECT q.*, s.job_role, s.interview_type
+            SELECT q.*, s.job_role, s.interview_type, s.company_style,
+                   e.overall_score AS latest_score, a.created_at AS answered_at
             FROM interview_questions q
             JOIN interview_sessions s ON s.id = q.session_id
+            LEFT JOIN interview_evaluations e ON e.question_id = q.id
+            LEFT JOIN interview_answers a ON a.question_id = q.id
             WHERE q.user_id = ? AND q.is_bookmarked = 1
             ORDER BY q.id DESC
             """,
@@ -480,6 +501,8 @@ def list_interview_history(current_user: dict = Depends(get_current_user)):
         sessions = []
         for r in rows:
             sd = parse_json_fields(row_to_dict(r), ["strengths", "weaknesses", "recommended_topics"])
+            if not sd.get("company_style"):
+                sd["company_style"] = "High-Growth SaaS"
             ans_cnt = conn.execute(
                 "SELECT COUNT(*) AS cnt FROM interview_answers WHERE session_id = ?",
                 (sd["id"],),

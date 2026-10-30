@@ -267,6 +267,44 @@ Return JSON with exact keys:
     )
 
 
+COMPANY_STYLE_RUBRICS = {
+    "High-Growth SaaS": {
+        "focus": "High product velocity, p99 latency under rapid customer growth, pragmatic architecture trade-offs, and end-to-end ownership.",
+        "probe_prefix": "[High-Growth SaaS Rubric — Velocity & p99 Latency]",
+    },
+    "Big Tech / FAANG": {
+        "focus": "Petabyte-scale distributed systems, strict algorithmic complexity, consensus rigor, and CAP theorem trade-offs.",
+        "probe_prefix": "[FAANG / Big Tech Bar Raiser — Scale & Consensus Rigor]",
+    },
+    "FinTech / High-Frequency": {
+        "focus": "Sub-millisecond determinism, ACID transactional guarantees, idempotency keys, zero data loss, and strict auditability.",
+        "probe_prefix": "[FinTech High-Reliability Rubric — ACID & Idempotency]",
+    },
+    "Enterprise Core Platform": {
+        "focus": "Multi-tenant data isolation, zero-downtime schema migrations, backward compatibility, and disaster recovery SLAs.",
+        "probe_prefix": "[Enterprise Core Platform Rubric — Multi-Tenancy & Resilience]",
+    },
+}
+
+
+def _resolve_company_rubric(company_style: str) -> Dict[str, str]:
+    style_clean = (company_style or "High-Growth SaaS").strip()
+    for key, val in COMPANY_STYLE_RUBRICS.items():
+        if key.lower() in style_clean.lower() or style_clean.lower() in key.lower():
+            return {"name": style_clean, "focus": val["focus"], "probe_prefix": val["probe_prefix"]}
+    if "faang" in style_clean.lower() or "google" in style_clean.lower() or "meta" in style_clean.lower():
+        v = COMPANY_STYLE_RUBRICS["Big Tech / FAANG"]
+        return {"name": style_clean, "focus": v["focus"], "probe_prefix": v["probe_prefix"]}
+    if "fintech" in style_clean.lower() or "stripe" in style_clean.lower():
+        v = COMPANY_STYLE_RUBRICS["FinTech / High-Frequency"]
+        return {"name": style_clean, "focus": v["focus"], "probe_prefix": v["probe_prefix"]}
+    if "enterprise" in style_clean.lower():
+        v = COMPANY_STYLE_RUBRICS["Enterprise Core Platform"]
+        return {"name": style_clean, "focus": v["focus"], "probe_prefix": v["probe_prefix"]}
+    v = COMPANY_STYLE_RUBRICS["High-Growth SaaS"]
+    return {"name": style_clean, "focus": v["focus"], "probe_prefix": f"[{style_clean} Calibration]"}
+
+
 def generate_interview_questions_with_ai(
     job_role: str,
     experience_level: str,
@@ -275,6 +313,7 @@ def generate_interview_questions_with_ai(
     question_count: int,
     resume_text: str = "",
     jd_text: str = "",
+    company_style: str = "High-Growth SaaS",
 ) -> Tuple[List[AIQuestionItem], str]:
     """Generate contextual, non-repetitive interview questions based on role, category, difficulty, resume, and JD."""
     sys_prompt = (
@@ -285,6 +324,7 @@ def generate_interview_questions_with_ai(
 Experience Level: {experience_level}
 Interview Category: {interview_type}
 Difficulty: {difficulty}
+Company Interview Style & Bar Rubric: {company_style} ({_resolve_company_rubric(company_style)['focus']})
 Number of Questions: {question_count}
 Resume Excerpt: {resume_text[:2000] if resume_text else 'N/A'}
 Job Description Excerpt: {jd_text[:2000] if jd_text else 'N/A'}
@@ -438,17 +478,21 @@ Return a JSON array of exactly {question_count} objects with keys:
         if cat_name != interview_type:
             selected_pool.extend(cat_questions)
 
+    rubric_info = _resolve_company_rubric(company_style)
     out_questions: List[AIQuestionItem] = []
     for i in range(question_count):
         template = selected_pool[i % len(selected_pool)]
+        styled_q_text = f"{template['question_text']} Specifically calibrate your answer for a {rubric_info['name']} environment ({rubric_info['focus']})"
+        styled_points = list(template["expected_key_points"]) + [f"Alignment with {rubric_info['name']} expectations"]
+        styled_sample = f"{template['sample_answer']} Under a {rubric_info['name']} bar, we prioritize {rubric_info['focus'].lower()}"
         out_questions.append(
             AIQuestionItem(
-                question_text=template["question_text"],
+                question_text=styled_q_text,
                 category=interview_type,
                 difficulty=difficulty,
-                topic=template["topic"],
-                expected_key_points=template["expected_key_points"],
-                sample_answer=template["sample_answer"],
+                topic=f"{template['topic']} ({rubric_info['name']})",
+                expected_key_points=styled_points[:4],
+                sample_answer=styled_sample,
             )
         )
     return out_questions, "deterministic_fallback_engine"

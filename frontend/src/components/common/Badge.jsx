@@ -1,21 +1,26 @@
 import React from 'react';
 
-export default function Badge({ variant = 'primary', size = 'md', children, className = '' }) {
+export default function Badge({ variant = 'primary', size = 'sm', children, className = '' }) {
   const variants = {
-    primary: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/35',
-    success: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35',
-    warning: 'bg-amber-500/15 text-amber-300 border-amber-500/35',
-    danger: 'bg-rose-500/15 text-rose-300 border-rose-500/35',
-    info: 'bg-sky-500/15 text-sky-300 border-sky-500/35',
-    gray: 'bg-slate-500/15 text-slate-300 border-slate-500/35',
+    primary: 'bg-[#786BFF]/15 text-[#C5C0FF] border-[#786BFF]/30',
+    violet: 'bg-[#786BFF]/15 text-[#C5C0FF] border-[#786BFF]/30',
+    cyan: 'bg-[#42C6D9]/12 text-[#42C6D9] border-[#42C6D9]/30',
+    info: 'bg-[#42C6D9]/12 text-[#42C6D9] border-[#42C6D9]/30',
+    success: 'bg-[#36C995]/12 text-[#36C995] border-[#36C995]/30',
+    emerald: 'bg-[#36C995]/12 text-[#36C995] border-[#36C995]/30',
+    warning: 'bg-[#F1B65D]/12 text-[#F1B65D] border-[#F1B65D]/30',
+    amber: 'bg-[#F1B65D]/12 text-[#F1B65D] border-[#F1B65D]/30',
+    danger: 'bg-[#EF7280]/12 text-[#EF7280] border-[#EF7280]/30',
+    rose: 'bg-[#EF7280]/12 text-[#EF7280] border-[#EF7280]/30',
+    gray: 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border-[var(--border-subtle)]',
   };
   const sizes = {
-    sm: 'px-3 py-1 text-xs font-semibold',
-    md: 'px-3.5 py-1.5 text-sm font-semibold',
-    lg: 'px-4 py-2 text-base font-bold',
+    xs: 'px-1.5 py-0.5 text-[10px]',
+    sm: 'px-2 py-0.5 text-[11px]',
+    md: 'px-2.5 py-1 text-xs',
   };
   return (
-    <span className={`inline-flex items-center rounded-full border ${variants[variant] || variants.primary} ${sizes[size] || sizes.md} ${className}`}>
+    <span className={`inline-flex items-center label-caps rounded-[4px] border ${variants[variant] || variants.primary} ${sizes[size] || sizes.sm} ${className}`}>
       {children}
     </span>
   );

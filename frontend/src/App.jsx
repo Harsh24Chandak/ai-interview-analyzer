@@ -2,8 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './components/common/Toast';
-import DashboardLayout from './components/layout/DashboardLayout';
-import Loading from './components/common/Loading';
+import ApplicationLayout from './components/layout/ApplicationLayout';
+import LoadingSkeleton from './components/common/LoadingSkeleton';
 
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -16,14 +16,21 @@ import Interview from './pages/Interview';
 import Results from './pages/Results';
 import Performance from './pages/Performance';
 import History from './pages/History';
+import Bookmarks from './pages/Bookmarks';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) return <Loading label="Verifying session..." />;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#080D18] text-[#F4F7FC] p-8">
+        <LoadingSkeleton label="Verifying authenticated session..." />
+      </div>
+    );
+  }
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return <ApplicationLayout>{children}</ApplicationLayout>;
 }
 
 export default function App() {
@@ -43,6 +50,7 @@ export default function App() {
             <Route path="/results/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
             <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+            <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />

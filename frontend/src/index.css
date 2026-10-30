@@ -1,26 +1,135 @@
 @import "tailwindcss";
 
+:root,
+html.dark,
+.theme-dark {
+  --bg-canvas: #080D18;
+  --bg-subtle: #0C1422;
+  --bg-surface: #111C2D;
+  --bg-elevated: #17243A;
+  --bg-overlay: #1A2840;
+  --border-subtle: #26344A;
+  --border-hover: #394B66;
+  --text-primary: #F4F7FC;
+  --text-secondary: #9AA9BD;
+  --text-muted: #53637A;
+  --accent-violet: #786BFF;
+  --accent-violet-hover: #897DFF;
+  --accent-cyan: #42C6D9;
+  --accent-success: #36C995;
+  --accent-warning: #F1B65D;
+  --accent-error: #EF7280;
+}
+
+html.light,
+.theme-light {
+  --bg-canvas: #F4F6FA;
+  --bg-subtle: #EAEEF5;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F8FAFC;
+  --bg-overlay: #FFFFFF;
+  --border-subtle: #E3E8F0;
+  --border-hover: #CBD5E1;
+  --text-primary: #172033;
+  --text-secondary: #657188;
+  --text-muted: #94A3B8;
+  --accent-violet: #6658E8;
+  --accent-violet-hover: #5547D6;
+  --accent-cyan: #0891B2;
+  --accent-success: #10B981;
+  --accent-warning: #D97706;
+  --accent-error: #E11D48;
+}
+
 @layer base {
   html {
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 16px;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
+
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    line-height: 1.6;
-    letter-spacing: -0.011em;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    overflow-x: hidden;
   }
 }
 
-.glass-card {
-  background: rgba(15, 23, 42, 0.78);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.14);
+.font-geist {
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.gradient-text {
-  background: linear-gradient(135deg, #818cf8 0%, #38bdf8 50%, #34d399 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.font-mono-tabular {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.label-caps {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.obsidian-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.obsidian-card-interactive {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.obsidian-card-interactive:hover {
+  background-color: var(--bg-elevated);
+  border-color: var(--border-hover);
+}
+
+.obsidian-subpanel {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.obsidian-input {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: 6px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.obsidian-input:focus {
+  outline: none;
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 0 1px var(--accent-violet);
+}
+
+.btn-primary-violet {
+  background-color: var(--accent-violet);
+  color: #FFFFFF;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.btn-primary-violet:hover:not(:disabled) {
+  background-color: var(--accent-violet-hover);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 16px -2px rgba(120, 107, 255, 0.35);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  user-select: none;
 }

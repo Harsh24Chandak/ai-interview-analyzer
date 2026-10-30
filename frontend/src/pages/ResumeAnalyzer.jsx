@@ -1,247 +1,705 @@
 import React, { useEffect, useState } from 'react';
-import { Upload, FileText, CheckCircle2, AlertTriangle, Sparkles, Copy, Check } from 'lucide-react';
 import { resumeAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/common/Toast';
-import Card from '../components/common/Card';
-import Button from '../components/common/Button';
+import PageHeader from '../components/layout/PageHeader';
 import Badge from '../components/common/Badge';
+import Button from '../components/common/Button';
+import ScoreRing from '../components/common/ScoreRing';
 import ProgressBar from '../components/common/ProgressBar';
+import FileUpload from '../components/common/FileUpload';
+import LoadingSkeleton from '../components/common/LoadingSkeleton';
 
 export default function ResumeAnalyzer() {
+  const { user } = useAuth();
   const { showToast } = useToast();
-  const [targetRole, setTargetRole] = useState('Full Stack Software Engineer');
-  const [analysis, setAnalysis] = useState(null);
-  const [resume, setResume] = useState(null);
-  const [loading, setLoading] = useState(false);
 
-  // XYZ Bullet Rewriter State
+  // Mode: 'upload' (Screen 05) or 'results' (Screen 06)
+  const [viewMode, setViewMode] = useState('upload');
+  const [inputTab, setInputTab] = useState('file'); // 'file' or 'paste'
+  const [targetRole, setTargetRole] = useState(user?.target_role || 'Full Stack Software Engineer');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [pastedText, setPastedText] = useState('');
+  const [pipelineStage, setPipelineStage] = useState(0); // 0 idle, 1..4 active
+
+  const [resumesHistory, setResumesHistory] = useState([]);
+  const [analysesHistory, setAnalysesHistory] = useState([]);
+  const [activeResume, setActiveResume] = useState(null);
+  const [activeAnalysis, setActiveAnalysis] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+
+  // XYZ Bullet Optimizer State
   const [bulletInput, setBulletInput] = useState(
-    'Worked on backend APIs using Python and SQL database queries.\nBuilt frontend dashboard pages in React.\nCreated an AI interview analyzer project using Gemini API.'
+    'Managed AWS backend services for reliability and cut cloud bills with the infrastructure team.\nWorked on Python REST APIs and SQL database queries.\nBuilt React frontend pages for the telemetry dashboard.'
   );
   const [rewrites, setRewrites] = useState([]);
   const [rewriting, setRewriting] = useState(false);
-  const [copiedIdx, setCopiedIdx] = useState(-1);
+  const [selectedRewriteIdx, setSelectedRewriteIdx] = useState(0);
 
-  useEffect(() => {
-    resumeAPI
-      .listResumes()
-      .then((res) => {
-        setResume(res.data.latest_resume);
-        setAnalysis(res.data.latest_analysis);
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const loadResumes = async () => {
     setLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('target_role', targetRole);
     try {
-      const res = await resumeAPI.uploadResume(formData);
-      setResume(res.data.resume);
-      setAnalysis(res.data.analysis);
-      showToast('Resume extracted and analyzed!', 'success');
+      const res = await resumeAPI.listResumes();
+      const rList = res.data?.resumes || [];
+      const aList = res.data?.analyses || [];
+      setResumesHistory(rList);
+      setAnalysesHistory(aList);
+      if (res.data?.latest_resume && res.data?.latest_analysis) {
+        setActiveResume(res.data.latest_resume);
+        setActiveAnalysis(res.data.latest_analysis);
+        setViewMode('results');
+      }
     } catch (err) {
-      showToast(err?.response?.data?.detail || 'Upload failed.', 'error');
+      // Keep upload view if none
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSampleAnalyze = async () => {
-    setLoading(true);
+  useEffect(() => {
+    loadResumes();
+  }, []);
+
+  const handleRunAnalysis = async () => {
+    setProcessing(true);
+    setPipelineStage(1);
+    const stageTimer = setInterval(() => {
+      setPipelineStage((prev) => (prev < 4 ? prev + 1 : prev));
+    }, 300);
+
     try {
-      const res = await resumeAPI.analyzeResume({
-        target_role: targetRole,
-        raw_text:
-          'HARSH CHANDAK — Full Stack Software Engineer\nEducation: B.Tech in Computer Science & Engineering (8.9 CGPA)\nSkills: Python, FastAPI, React, TypeScript, SQL, PostgreSQL, Docker, Git, REST APIs, Tailwind CSS\nExperience: Full-Stack Intern — Built 14 RESTful APIs in FastAPI with JWT security and reduced SQL P95 latency by 38% (420ms to 260ms).\nProjects: AI Interview Analyzer — Full-stack AI interview preparation SaaS with React, FastAPI, SQLite, and Google Gemini API.',
-      });
-      setResume(res.data.resume);
-      setAnalysis(res.data.analysis);
-      showToast('Sample resume analyzed successfully!', 'success');
+      let res;
+      if (inputTab === 'file' && selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('target_role', targetRole);
+        res = await resumeAPI.uploadResume(formData);
+      } else if (inputTab === 'paste' && pastedText.trim().length >= 20) {
+        res = await resumeAPI.analyzeResume({
+          raw_text: pastedText.trim(),
+          target_role: targetRole,
+        });
+      } else if (activeResume?.id) {
+        res = await resumeAPI.analyzeResume({
+          resume_id: activeResume.id,
+          target_role: targetRole,
+        });
+      } else {
+        showToast('Please select a PDF/DOCX/TXT file (up to 10MB) or paste at least 20 characters of resume text.', 'error');
+        clearInterval(stageTimer);
+        setPipelineStage(0);
+        setProcessing(false);
+        return;
+      }
+
+      setActiveResume(res.data.resume);
+      setActiveAnalysis(res.data.analysis);
+      showToast('Resume parsed and analyzed successfully!', 'success');
+      await loadResumes();
+      setViewMode('results');
     } catch (err) {
-      showToast('Could not analyze sample resume.', 'error');
+      showToast(err?.response?.data?.detail || 'Resume analysis failed.', 'error');
     } finally {
-      setLoading(false);
+      clearInterval(stageTimer);
+      setPipelineStage(0);
+      setProcessing(false);
     }
   };
 
   const handleRewriteBullets = async () => {
+    const lines = bulletInput.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      showToast('Enter at least one resume bullet to optimize.', 'error');
+      return;
+    }
     setRewriting(true);
     try {
-      const lines = bulletInput.split('\n').map((l) => l.trim()).filter(Boolean);
-      const res = await resumeAPI.rewriteBullets({ bullets: lines, target_role: targetRole });
+      const res = await resumeAPI.rewriteBullets({
+        bullets: lines,
+        target_role: activeAnalysis?.target_role || targetRole,
+      });
       setRewrites(res.data.rewrites || []);
-      showToast('Transformed bullets using the XYZ Impact Formula!', 'success');
+      setSelectedRewriteIdx(0);
+      showToast('Generated Google XYZ impact bullet optimizations!', 'success');
     } catch (err) {
-      showToast('Could not rewrite bullets.', 'error');
+      showToast(err?.response?.data?.detail || 'Bullet optimization failed.', 'error');
     } finally {
       setRewriting(false);
     }
   };
 
-  return (
-    <div className="space-y-8">
-      <Card>
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white">AI Resume Intelligence & ATS Audit</h2>
-            <p className="text-base text-slate-400 mt-1">
-              Upload a PDF, DOCX, or TXT resume to extract skills, audit quantified impact, and rewrite weak bullets.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <input
-              type="text"
-              value={targetRole}
-              onChange={(e) => setTargetRole(e.target.value)}
-              placeholder="Target Job Role"
-              className="px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-base text-white min-w-[260px]"
-            />
-            <button
-              onClick={handleSampleAnalyze}
-              disabled={loading}
-              className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold border border-slate-700 cursor-pointer"
-            >
-              Try Sample Resume
-            </button>
-            <label className="cursor-pointer px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-bold inline-flex items-center gap-2 shadow-lg shadow-indigo-600/30">
-              <Upload className="w-4 h-4" />
-              {loading ? 'Analyzing...' : 'Upload PDF / DOCX'}
-              <input type="file" accept=".pdf,.docx,.txt" onChange={handleFileUpload} className="hidden" />
-            </label>
-          </div>
-        </div>
-      </Card>
+  const handleExportReport = () => {
+    if (!activeAnalysis) return;
+    const payload = {
+      resume: activeResume,
+      analysis: activeAnalysis,
+      xyz_rewrites: rewrites,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `resume_audit_${activeResume?.filename || 'report'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Exported Resume Analysis Report (JSON)', 'info');
+  };
 
-      {analysis && (
-        <div className="grid xl:grid-cols-3 gap-6">
-          <Card className="space-y-5">
-            <div className="flex items-center justify-between">
-              <span className="text-base font-bold text-slate-300">Overall Resume Score</span>
-              <Badge variant="success" size="lg">{analysis.overall_score}/100</Badge>
-            </div>
-            <ProgressBar label="ATS Compatibility" value={analysis.ats_compatibility_score} variant="success" />
-            <ProgressBar label="Quantified Impact (XYZ)" value={analysis.impact_score} variant="primary" />
-            <ProgressBar label="Technical Stack Depth" value={analysis.technical_depth_score} variant="primary" />
-            {resume && (
-              <div className="pt-4 border-t border-slate-800">
-                <p className="text-sm font-bold text-slate-200 mb-2">Extracted File: {resume.filename}</p>
-                <pre className="text-xs text-slate-300 bg-slate-950 p-4 rounded-xl max-h-60 overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed border border-slate-800">
-                  {resume.raw_text}
-                </pre>
-              </div>
-            )}
-          </Card>
+  if (loading) return <LoadingSkeleton label="Loading Resume Intelligence workspace..." />;
 
-          <Card className="xl:col-span-2 space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-white mb-3">
-                Extracted Technical Skills ({analysis.extracted_skills?.technical_skills?.length || 0})
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {(analysis.extracted_skills?.technical_skills || []).map((s, i) => (
-                  <Badge key={i} variant="primary" size="md">{s}</Badge>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-amber-300 mb-3">
-                Missing Benchmark Skills for {analysis.target_role}
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {(analysis.missing_skills || []).map((s, i) => (
-                  <Badge key={i} variant="warning" size="md">+ {s}</Badge>
-                ))}
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6 pt-2">
-              <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-emerald-400 mb-3">Key Strengths</h4>
-                <ul className="space-y-2.5 text-sm text-slate-200">
-                  {(analysis.strengths || []).map((st, i) => (
-                    <li key={i} className="flex items-start gap-2.5">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>{st}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-indigo-400 mb-3">Actionable Upgrades</h4>
-                <ul className="space-y-2.5 text-sm text-slate-200">
-                  {(analysis.improvement_recommendations || []).map((rec, i) => (
-                    <li key={i} className="flex items-start gap-2.5">
-                      <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                      <span>{rec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
+  const currentRewrite = rewrites[selectedRewriteIdx] || null;
 
-      {/* UNIQUE FEATURE: 1-Click AI Resume Bullet XYZ Rewriter */}
-      <Card className="border-indigo-500/35">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-          <div>
-            <Badge variant="primary" size="sm" className="mb-2">Unique Market Feature</Badge>
-            <h3 className="text-2xl font-extrabold text-white">
-              1-Click AI Resume Bullet XYZ Optimizer ("Before vs. After")
-            </h3>
-            <p className="text-base text-slate-400">
-              Paste weak or generic resume lines below to transform them into metric-driven Google XYZ impact statements: <em>"Accomplished [X] as measured by [Y], by doing [Z]"</em>.
-            </p>
-          </div>
-          <Button onClick={handleRewriteBullets} isLoading={rewriting} icon={Sparkles} size="lg">
-            Rewrite Bullets with XYZ Formula
-          </Button>
-        </div>
-
-        <textarea
-          rows={4}
-          value={bulletInput}
-          onChange={(e) => setBulletInput(e.target.value)}
-          className="w-full p-4 rounded-2xl bg-slate-950 border border-slate-800 text-base text-slate-100 mb-6"
-          placeholder="Paste 1 to 5 resume bullet points (one per line)..."
+  // ==========================================================================
+  // SCREEN 05 — RESUME ANALYZER UPLOAD & INGESTION VIEW
+  // ==========================================================================
+  if (viewMode === 'upload' || !activeAnalysis) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          breadcrumbs={['WORKSPACE', 'RESUME INTELLIGENCE', 'DOCUMENT INGESTION']}
+          title="Resume Intelligence & ATS Analyzer"
+          subtitle="Upload and deconstruct candidate CVs against ATS parsing rules, skill extraction taxonomies, and quantified impact checks."
+          actions={
+            <>
+              {activeAnalysis && (
+                <Button variant="secondary" size="sm" materialIcon="history" onClick={() => setViewMode('results')}>
+                  View Recent Analysis ({activeResume?.filename?.slice(0, 18) || 'Latest'})
+                </Button>
+              )}
+              <Badge variant="emerald">• PARSER READY</Badge>
+            </>
+          }
         />
 
-        {rewrites.length > 0 && (
-          <div className="space-y-4">
-            {rewrites.map((item, idx) => (
-              <div key={idx} className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 grid lg:grid-cols-12 gap-4 items-center">
-                <div className="lg:col-span-4">
-                  <span className="text-xs font-bold uppercase text-rose-400 block mb-1">Before (Passive / Generic)</span>
-                  <p className="text-sm text-slate-400 line-through">{item.original}</p>
+        <div className="grid lg:grid-cols-12 gap-6">
+          {/* Left Column (7 cols): Target Role + File Upload / Paste + Execution Pipeline */}
+          <div className="lg:col-span-7 space-y-5">
+            <div className="obsidian-card p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#786BFF] text-[18px]">track_changes</span>
+                  <h2 className="text-sm font-semibold">Target Job Role Alignment</h2>
                 </div>
-                <div className="lg:col-span-7">
-                  <span className="text-xs font-bold uppercase text-emerald-400 block mb-1">After (XYZ Quantified Impact)</span>
-                  <p className="text-base font-semibold text-white">{item.rewritten_xyz}</p>
-                  <p className="text-xs text-indigo-300 mt-1">{item.impact_upgrade}</p>
-                </div>
-                <div className="lg:col-span-1 flex justify-end">
+                <span className="label-caps text-[10px] text-[#42C6D9]">ACTIVE BENCHMARK MODEL</span>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Select or enter your target role to calibrate skill extraction and missing keyword detection.
+              </p>
+              <input
+                type="text"
+                value={targetRole}
+                onChange={(e) => setTargetRole(e.target.value)}
+                className="w-full obsidian-input px-3.5 py-2.5 text-sm"
+                placeholder="e.g., Senior Full-Stack Engineer"
+              />
+            </div>
+
+            <div className="obsidian-card p-5 space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="inline-flex p-1 rounded-[6px] bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
                   <button
-                    onClick={() => {
-                      navigator.clipboard?.writeText(item.rewritten_xyz);
-                      setCopiedIdx(idx);
-                      showToast('Copied XYZ bullet to clipboard!', 'info');
-                    }}
-                    className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
-                    title="Copy Rewritten Bullet"
+                    type="button"
+                    onClick={() => setInputTab('file')}
+                    className={`px-3 py-1.5 rounded-[4px] label-caps text-[10px] flex items-center gap-1.5 cursor-pointer ${
+                      inputTab === 'file' ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                    }`}
                   >
-                    {copiedIdx === idx ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
+                    <span className="material-symbols-outlined text-[14px]">upload_file</span>
+                    DOCUMENT UPLOAD
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputTab('paste')}
+                    className={`px-3 py-1.5 rounded-[4px] label-caps text-[10px] flex items-center gap-1.5 cursor-pointer ${
+                      inputTab === 'paste' ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[14px]">notes</span>
+                    PASTE PLAIN TEXT RESUME
                   </button>
                 </div>
+                <span className="label-caps text-[10px] text-[var(--text-secondary)]">MAX: 10 MB</span>
               </div>
-            ))}
+
+              {inputTab === 'file' ? (
+                <FileUpload
+                  selectedFilename={selectedFile?.name || ''}
+                  isLoading={processing}
+                  onFileSelect={(file) => {
+                    setSelectedFile(file);
+                    showToast(`Selected ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
+                  }}
+                />
+              ) : (
+                <textarea
+                  rows={8}
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="Paste your complete resume text here (Education, Technical Skills, Experience, Projects)..."
+                  className="w-full obsidian-input p-4 text-xs font-mono-tabular leading-relaxed"
+                />
+              )}
+
+              {/* Automated Execution Pipeline Stage Bar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="label-caps text-[10px] text-[var(--text-secondary)]">AUTOMATED EXECUTION PIPELINE</span>
+                  <span className="label-caps text-[10px] text-[#42C6D9]">
+                    {processing ? `EXECUTING STAGE 0${pipelineStage}...` : 'READY TO EXECUTE'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { idx: 1, label: 'Ingestion' },
+                    { idx: 2, label: 'Skill Extraction' },
+                    { idx: 3, label: 'ATS Compliance' },
+                    { idx: 4, label: 'Impact Scoring' },
+                  ].map((st) => (
+                    <div
+                      key={st.idx}
+                      className={`obsidian-subpanel p-2.5 ${
+                        pipelineStage >= st.idx ? 'border-[#42C6D9] bg-[#42C6D9]/10' : ''
+                      }`}
+                    >
+                      <span className="label-caps text-[9px] text-[var(--text-secondary)] block">STAGE 0{st.idx}</span>
+                      <span className="text-xs font-medium text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#42C6D9]" />
+                        {st.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                isLoading={processing}
+                materialIcon="psychology"
+                onClick={handleRunAnalysis}
+                className="w-full py-3"
+              >
+                Analyze Resume with ATS & Skill Engine
+              </Button>
+            </div>
           </div>
-        )}
-      </Card>
+
+          {/* Right Column (5 cols): Previously Analyzed Versions & Formatting Guidelines */}
+          <div className="lg:col-span-5 space-y-5">
+            <div className="obsidian-card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#42C6D9] text-[18px]">history</span>
+                  <h3 className="text-sm font-semibold">Previously Analyzed Versions</h3>
+                </div>
+                <span className="label-caps text-[10px] text-[var(--text-secondary)]">
+                  {resumesHistory.length} Snapshot(s)
+                </span>
+              </div>
+
+              {resumesHistory.length === 0 ? (
+                <p className="text-xs text-[var(--text-secondary)] py-4">
+                  No resumes uploaded yet. Upload a PDF, DOCX, or TXT file on the left to create your first snapshot.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {resumesHistory.slice(0, 4).map((r, idx) => {
+                    const matchingAn = analysesHistory.find((a) => a.resume_id === r.id) || analysesHistory[idx];
+                    return (
+                      <div key={r.id} className="obsidian-subpanel p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="material-symbols-outlined text-[#EF7280] text-[16px]">description</span>
+                            <span className="text-xs font-semibold truncate">{r.filename}</span>
+                          </div>
+                          <Badge variant={idx === 0 ? 'emerald' : 'gray'} size="xs">
+                            {idx === 0 ? 'ACTIVE PROFILE' : 'ARCHIVED'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] font-mono-tabular text-[var(--text-secondary)]">
+                          <span>Parsed {(r.created_at || '').slice(0, 10)}</span>
+                          {matchingAn && (
+                            <span>
+                              SCORE: <strong className="text-[#42C6D9]">{matchingAn.overall_score}/100</strong> • ATS:{' '}
+                              <strong className="text-[#36C995]">{matchingAn.ats_compatibility_score}%</strong>
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={() => {
+                              setActiveResume(r);
+                              if (matchingAn) setActiveAnalysis(matchingAn);
+                              setViewMode('results');
+                            }}
+                          >
+                            INSPECT
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={async () => {
+                              setProcessing(true);
+                              try {
+                                const resp = await resumeAPI.analyzeResume({ resume_id: r.id, target_role: targetRole });
+                                setActiveResume(resp.data.resume);
+                                setActiveAnalysis(resp.data.analysis);
+                                setViewMode('results');
+                                showToast('Re-analyzed resume snapshot!', 'success');
+                              } finally {
+                                setProcessing(false);
+                              }
+                            }}
+                          >
+                            RE-ANALYZE
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="obsidian-card p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="label-caps text-[10px] text-[var(--text-secondary)]">HIGH-PASS FORMATTING GUIDELINES</span>
+                <Badge variant="emerald" size="xs">ATS CHECKLIST</Badge>
+              </div>
+              <ul className="space-y-2.5 text-xs text-[var(--text-secondary)]">
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[#36C995] text-[16px] shrink-0 mt-0.5">check_circle</span>
+                  <span>
+                    <strong className="text-[var(--text-primary)]">Standard Single-Column Hierarchy:</strong> Clear section headers (Education, Technical Skills, Experience, Projects) improve text extraction reliability.
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[#36C995] text-[16px] shrink-0 mt-0.5">check_circle</span>
+                  <span>
+                    <strong className="text-[var(--text-primary)]">Google XYZ Bullet Formula:</strong> "Accomplished [X] as measured by [Y], by doing [Z]" strengthens quantified impact scoring.
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[#36C995] text-[16px] shrink-0 mt-0.5">check_circle</span>
+                  <span>
+                    <strong className="text-[var(--text-primary)]">Selectable UTF-8 Text:</strong> Ensure uploaded PDFs or DOCX files contain selectable text rather than scanned images.
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // SCREEN 06 — RESUME ANALYSIS RESULTS VIEW
+  // ==========================================================================
+  const techSkills = activeAnalysis.extracted_skills?.technical_skills || [];
+  const softSkills = activeAnalysis.extracted_skills?.soft_skills || [];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        breadcrumbs={['WORKSPACE', 'RESUME INTELLIGENCE', `#RA-${activeAnalysis.id || 'LIVE'}`]}
+        title={`Resume Analysis: ${activeResume?.filename || 'Uploaded_Resume.pdf'}`}
+        subtitle={`Deep skill extraction and quantified impact telemetry for Target Role: ${activeAnalysis.target_role}`}
+        actions={
+          <>
+            <Button variant="secondary" size="sm" materialIcon="upload_file" onClick={() => setViewMode('upload')}>
+              Upload New
+            </Button>
+            <Button variant="secondary" size="sm" materialIcon="download" onClick={handleExportReport}>
+              Export Audit
+            </Button>
+            <Button variant="primary" size="sm" isLoading={processing} materialIcon="refresh" onClick={handleRunAnalysis}>
+              Re-run Parser
+            </Button>
+          </>
+        }
+      />
+
+      {/* 4 Top Score Cards (Match Screen 06) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="obsidian-card p-4 flex items-center justify-between gap-3">
+          <div>
+            <span className="label-caps text-[10px] text-[var(--text-secondary)] block">OVERALL CALIBRATION</span>
+            <p className="text-sm font-semibold text-[var(--text-primary)] mt-2">
+              {activeAnalysis.overall_score >= 85 ? 'Strong Readiness' : 'Solid Foundation'}
+            </p>
+            <span className="text-[11px] text-[var(--text-secondary)]">
+              Provider: {activeAnalysis.ai_provider}
+            </span>
+          </div>
+          <ScoreRing score={activeAnalysis.overall_score} size={74} strokeWidth={6} variant="cyan" />
+        </div>
+
+        <div className="obsidian-card p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="label-caps text-[10px] text-[var(--text-secondary)]">ATS STRUCTURE</span>
+            <Badge variant="emerald" size="xs">PARSED</Badge>
+          </div>
+          <div className="my-2">
+            <span className="font-mono-tabular text-3xl font-semibold text-[#42C6D9]">
+              {activeAnalysis.ats_compatibility_score}%
+            </span>
+            <span className="text-xs text-[var(--text-secondary)] ml-2">Section hierarchy</span>
+          </div>
+          <ProgressBar value={activeAnalysis.ats_compatibility_score} variant="cyan" showPercent={false} size="xs" />
+        </div>
+
+        <div className="obsidian-card p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="label-caps text-[10px] text-[var(--text-secondary)]">QUANTIFIED IMPACT</span>
+            <Badge variant="emerald" size="xs">XYZ Model</Badge>
+          </div>
+          <div className="my-2">
+            <span className="font-mono-tabular text-3xl font-semibold text-[#36C995]">
+              {activeAnalysis.impact_score}%
+            </span>
+            <span className="text-xs text-[var(--text-secondary)] ml-2">Measurable proof</span>
+          </div>
+          <ProgressBar value={activeAnalysis.impact_score} variant="emerald" showPercent={false} size="xs" />
+        </div>
+
+        <div className="obsidian-card p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="label-caps text-[10px] text-[var(--text-secondary)]">TECHNICAL SIGNAL</span>
+            <Badge variant="violet" size="xs">Role Stack</Badge>
+          </div>
+          <div className="my-2">
+            <span className="font-mono-tabular text-3xl font-semibold text-[var(--text-primary)]">
+              {activeAnalysis.technical_depth_score}%
+            </span>
+            <span className="text-xs text-[var(--text-secondary)] ml-2">{techSkills.length} skills extracted</span>
+          </div>
+          <ProgressBar value={activeAnalysis.technical_depth_score} variant="violet" showPercent={false} size="xs" />
+        </div>
+      </div>
+
+      {/* Main Two-Column Results Layout (Match Screen 06) */}
+      <div className="grid lg:grid-cols-12 gap-6">
+        {/* Left Column (5 cols): Extracted Skills, Credential Audit, Signal Audit Matrix */}
+        <div className="lg:col-span-5 space-y-5">
+          <div className="obsidian-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#42C6D9] text-[18px]">hub</span>
+                <h3 className="text-sm font-semibold">Extracted Skills Taxonomy</h3>
+              </div>
+              <span className="label-caps text-[10px] text-[var(--text-secondary)]">
+                {techSkills.length + softSkills.length} KEYWORDS IDENTIFIED
+              </span>
+            </div>
+
+            <div>
+              <div className="flex justify-between label-caps text-[10px] text-[var(--text-secondary)] mb-2">
+                <span>TECHNICAL & ENGINEERING STACK</span>
+                <span className="text-[#42C6D9]">Extracted</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {techSkills.map((sk, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2.5 py-1 rounded-[4px] bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-mono-tabular text-[var(--text-primary)]"
+                  >
+                    {sk}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between label-caps text-[10px] text-[var(--text-secondary)] mb-2">
+                <span>PROFESSIONAL & LEADERSHIP COMPETENCIES</span>
+                <span className="text-[#36C995]">Verified</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {softSkills.map((sk, idx) => (
+                  <Badge key={idx} variant="emerald" size="sm">✓ {sk}</Badge>
+                ))}
+              </div>
+            </div>
+
+            {activeAnalysis.missing_skills?.length > 0 && (
+              <div>
+                <div className="flex justify-between label-caps text-[10px] text-[#F1B65D] mb-2">
+                  <span>MISSING BENCHMARK SKILLS FOR {activeAnalysis.target_role}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {activeAnalysis.missing_skills.map((sk, idx) => (
+                    <Badge key={idx} variant="warning" size="sm">+ {sk}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="obsidian-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Structure & Credential Audit</h3>
+              <Badge variant="gray" size="xs">PARSED SECTIONS</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="obsidian-subpanel p-3">
+                <span className="label-caps text-[9px] text-[var(--text-secondary)] block">EXPERIENCE ENTRIES</span>
+                <span className="font-mono-tabular text-base font-semibold text-[var(--text-primary)]">
+                  {activeAnalysis.experience_summary?.length || 1} Role(s)
+                </span>
+                <p className="text-[11px] text-[var(--text-secondary)] mt-1 truncate">
+                  {activeAnalysis.experience_summary?.[0]?.role || 'Extracted from resume'}
+                </p>
+              </div>
+              <div className="obsidian-subpanel p-3">
+                <span className="label-caps text-[9px] text-[var(--text-secondary)] block">EDUCATION & PROJECTS</span>
+                <span className="font-mono-tabular text-base font-semibold text-[#42C6D9]">
+                  {activeAnalysis.education_summary?.[0]?.degree?.slice(0, 22) || 'Verified Degree'}
+                </span>
+                <p className="text-[11px] text-[var(--text-secondary)] mt-1">
+                  {activeAnalysis.projects_summary?.length || 1} Project(s) indexed
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="obsidian-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Signal Audit Matrix</h3>
+              <span className="label-caps text-[10px] text-[var(--text-secondary)]">DIAGNOSTIC REPORT</span>
+            </div>
+
+            <div className="space-y-2">
+              <span className="label-caps text-[10px] text-[#36C995] block">✓ HIGH-CONVICTION STRENGTHS</span>
+              {(activeAnalysis.strengths || []).map((st, i) => (
+                <div key={i} className="obsidian-subpanel p-3 text-xs text-[var(--text-secondary)] leading-relaxed">
+                  {st}
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <span className="label-caps text-[10px] text-[#F1B65D] block">⚠ IDENTIFIED GAPS & FRICTION</span>
+              {(activeAnalysis.weaknesses || []).map((wk, i) => (
+                <div key={i} className="obsidian-subpanel p-3 text-xs text-[var(--text-secondary)] leading-relaxed border-[#F1B65D]/30">
+                  {wk}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column (7 cols): AI Resume Bullet Optimizer + Next Actions Checklist */}
+        <div className="lg:col-span-7 space-y-5">
+          <div className="obsidian-card p-6 space-y-5 border-[#786BFF]/30">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#786BFF] text-[20px]">auto_fix_high</span>
+                <div>
+                  <h3 className="text-base font-semibold">AI Resume Bullet Optimizer</h3>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Transform generic task descriptions into Google XYZ impact statements.
+                  </p>
+                </div>
+              </div>
+              <Badge variant="cyan" size="xs">FRAMEWORK: [ACCOMPLISHED X, MEASURED BY Y, BY DOING Z]</Badge>
+            </div>
+
+            <div className="space-y-2">
+              <label className="label-caps text-[10px] text-[var(--text-secondary)] block">
+                ENTER 1–5 DRAFT RESUME BULLETS TO OPTIMIZE (ONE PER LINE)
+              </label>
+              <textarea
+                rows={3}
+                value={bulletInput}
+                onChange={(e) => setBulletInput(e.target.value)}
+                className="w-full obsidian-input p-3 text-xs font-mono-tabular"
+              />
+              <div className="flex justify-end">
+                <Button size="sm" isLoading={rewriting} materialIcon="auto_fix_high" onClick={handleRewriteBullets}>
+                  Optimize Bullets with XYZ Engine
+                </Button>
+              </div>
+            </div>
+
+            {rewrites.length > 0 && currentRewrite && (
+              <div className="space-y-4 pt-2 border-t border-[var(--border-subtle)]">
+                <div className="flex flex-wrap gap-2">
+                  {rewrites.map((rw, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedRewriteIdx(idx)}
+                      className={`px-3 py-1 rounded-[4px] label-caps text-[10px] border cursor-pointer ${
+                        selectedRewriteIdx === idx
+                          ? 'bg-[#786BFF]/20 border-[#786BFF] text-[var(--text-primary)]'
+                          : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                      }`}
+                    >
+                      • Bullet #{idx + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="obsidian-subpanel p-4 space-y-2 border-[#EF7280]/30">
+                  <div className="flex items-center justify-between">
+                    <span className="label-caps text-[10px] text-[#EF7280]">✕ ORIGINAL BULLET (DRAFT)</span>
+                    <span className="label-caps text-[10px] text-[var(--text-secondary)]">PASSIVE / VAGUE METRICS</span>
+                  </div>
+                  <p className="text-xs italic text-[var(--text-secondary)]">"{currentRewrite.original}"</p>
+                  <p className="text-[11px] text-[#F1B65D]">{currentRewrite.impact_upgrade}</p>
+                </div>
+
+                <div className="obsidian-subpanel p-4 space-y-3 border-[#36C995]/40">
+                  <div className="flex items-center justify-between">
+                    <span className="label-caps text-[10px] text-[#36C995]">✓ OPTIMIZED XYZ STANDARD</span>
+                    <Badge variant="emerald" size="xs">QUANTIFIED IMPACT</Badge>
+                  </div>
+                  <p className="text-sm font-medium text-[var(--text-primary)] leading-relaxed">
+                    {currentRewrite.rewritten_xyz}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      materialIcon="content_copy"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(currentRewrite.rewritten_xyz);
+                        showToast('Copied optimized XYZ bullet to clipboard!', 'info');
+                      }}
+                    >
+                      Copy Optimized Bullet
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="obsidian-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">High-Impact Next Actions Checklist</h3>
+              <span className="label-caps text-[10px] text-[var(--text-secondary)]">
+                {(activeAnalysis.improvement_recommendations || []).length} ITEMS
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              {(activeAnalysis.improvement_recommendations || []).map((rec, idx) => (
+                <div key={idx} className="obsidian-subpanel p-3.5 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-[4px] bg-[#786BFF]/15 border border-[#786BFF]/30 font-mono-tabular text-[11px] font-bold text-[#C5C0FF] flex items-center justify-center shrink-0">
+                      {idx + 1}
+                    </span>
+                    <p className="text-xs text-[var(--text-primary)] leading-relaxed">{rec}</p>
+                  </div>
+                  <Badge variant="cyan" size="xs">RECOMMENDED</Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
