@@ -1,0 +1,18 @@
+Job Title: Full Stack Software Engineer (AI Platform)
+Company: LinearScale Technologies
+Experience Required: 0-2 years of experience in full-stack development
+
+About the Role:
+We are looking for a high-ownership Full Stack Software Engineer to build and scale customer-facing AI productivity workflows.
+
+Required Technical Skills:
+- Strong proficiency in Python (FastAPI or Django) and modern JavaScript/TypeScript (React)
+- Relational database design and query optimization (PostgreSQL, SQL, SQLite)
+- RESTful API architecture, JWT authentication, and web application security
+- Containerization and CI/CD pipelines (Docker, Git, GitHub Actions, Pytest)
+- Familiarity with Redis caching, AWS cloud deployment, and LLM API integration (Google Gemini / OpenAI)
+
+Responsibilities:
+- Design, build, and maintain responsive React dashboards and resilient FastAPI backend services.
+- Implement structured validation with Pydantic and fault-tolerant fallback mechanisms for AI workflows.
+- Collaborate with product designers and engineers in code reviews and architecture discussions.
