@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { Briefcase, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { jobsAPI } from '../services/api';
 import { useToast } from '../components/common/Toast';
 import Card from '../components/common/Card';
@@ -42,9 +41,14 @@ export default function JobAnalyzer() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Card>
-        <h2 className="text-xl font-bold mb-4">Job Description Analyzer & Skill Compatibility Matcher</h2>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
+          Job Description Analyzer & Skill Gap Matrix
+        </h2>
+        <p className="text-base text-slate-400 mb-6">
+          Compare your resume skills against any target Job Description to generate an explainable compatibility score and 3-week learning roadmap.
+        </p>
         <form onSubmit={handleAnalyze} className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <input
@@ -53,14 +57,14 @@ export default function JobAnalyzer() {
               value={jobTitle}
               onChange={(e) => setJobTitle(e.target.value)}
               placeholder="Job Title"
-              className="px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm"
+              className="px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-base text-white"
             />
             <input
               type="text"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="Company Name"
-              className="px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm"
+              className="px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-base text-white"
             />
           </div>
           <textarea
@@ -69,46 +73,55 @@ export default function JobAnalyzer() {
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
             placeholder="Paste the complete job description here..."
-            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm"
+            className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-base text-white"
           />
-          <Button type="submit" isLoading={loading}>
+          <Button type="submit" isLoading={loading} size="lg">
             Analyze Job Compatibility
           </Button>
         </form>
       </Card>
 
       {result && (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <Card className="space-y-4">
-            <p className="text-xs text-slate-400">Resume-to-Job Match Score</p>
-            <p className="text-4xl font-extrabold text-indigo-400">{result.match_percentage}%</p>
+        <div className="grid xl:grid-cols-3 gap-6">
+          <Card className="space-y-5">
+            <p className="text-sm font-bold uppercase tracking-wider text-slate-400">Resume-to-Job Match Score</p>
+            <p className="text-5xl font-extrabold text-indigo-400">{result.match_percentage}%</p>
             <ProgressBar value={result.match_percentage} />
-            <p className="text-xs text-slate-300">{result.experience_requirements}</p>
+            <p className="text-base text-slate-300 leading-relaxed">{result.experience_requirements}</p>
           </Card>
-          <Card className="lg:col-span-2 space-y-4">
+
+          <Card className="xl:col-span-2 space-y-6">
             <div>
-              <h4 className="text-xs font-semibold uppercase text-emerald-400 mb-2">Matching Skills ({result.matching_skills?.length || 0})</h4>
-              <div className="flex flex-wrap gap-1.5">
+              <h4 className="text-base font-bold text-emerald-400 mb-2.5">
+                Matching Skills ({result.matching_skills?.length || 0})
+              </h4>
+              <div className="flex flex-wrap gap-2">
                 {(result.matching_skills || []).map((s, i) => (
-                  <Badge key={i} variant="success">{s}</Badge>
+                  <Badge key={i} variant="success" size="md">✓ {s}</Badge>
                 ))}
               </div>
             </div>
             <div>
-              <h4 className="text-xs font-semibold uppercase text-amber-400 mb-2">Missing Skills to Acquire ({result.missing_skills?.length || 0})</h4>
-              <div className="flex flex-wrap gap-1.5">
+              <h4 className="text-base font-bold text-amber-400 mb-2.5">
+                Missing Skills to Acquire ({result.missing_skills?.length || 0})
+              </h4>
+              <div className="flex flex-wrap gap-2">
                 {(result.missing_skills || []).map((s, i) => (
-                  <Badge key={i} variant="warning">{s}</Badge>
+                  <Badge key={i} variant="warning" size="md">! {s}</Badge>
                 ))}
               </div>
             </div>
             <div>
-              <h4 className="text-xs font-semibold uppercase text-indigo-400 mb-2">Personalized 3-Week Preparation Roadmap</h4>
-              <div className="grid md:grid-cols-3 gap-3">
+              <h4 className="text-base font-bold text-indigo-300 mb-3">
+                Personalized 3-Week Preparation Roadmap
+              </h4>
+              <div className="grid md:grid-cols-3 gap-4">
                 {(result.learning_roadmap || []).map((step, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-xs font-bold text-indigo-400">{step.week}: {step.focus}</span>
-                    <p className="text-xs text-slate-400 mt-1">{step.action}</p>
+                  <div key={i} className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                    <span className="text-sm font-extrabold text-indigo-400 block mb-1">
+                      {step.week}: {step.focus}
+                    </span>
+                    <p className="text-sm text-slate-300 leading-relaxed">{step.action}</p>
                   </div>
                 ))}
               </div>

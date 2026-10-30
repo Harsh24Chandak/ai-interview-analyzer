@@ -79,6 +79,8 @@ def get_dashboard_overview(current_user: dict = Depends(get_current_user)):
         sd = parse_json_fields(row_to_dict(r), ["recommended_topics"])
         skills_to_improve.extend(sd.get("recommended_topics", []))
     skills_to_improve = list(dict.fromkeys(skills_to_improve))[:6]
+    if not skills_to_improve:
+        skills_to_improve = ["System Design & Scalability", "Redis & Distributed Caching", "Automated Testing (Pytest)", "STAR Behavioral Storytelling", "SQL Query Optimization", "Cloud Deployment (AWS/Docker)"]
 
     recommended_actions = []
     if not latest_resume_an:
@@ -110,7 +112,18 @@ def get_dashboard_overview(current_user: dict = Depends(get_current_user)):
         for r in reversed(completed_rows[:8])
     ]
 
+    is_baseline_projection = False
+    if not trend_series:
+        is_baseline_projection = True
+        trend_series = [
+            {"session": "Baseline", "date": "Target Start", "role": current_user.get("target_role", "Full Stack"), "type": "Benchmark", "overall": 62, "technical": 60, "communication": 65},
+            {"session": "Milestone 1", "date": "Session 1 Goal", "role": current_user.get("target_role", "Full Stack"), "type": "Technical", "overall": 74, "technical": 75, "communication": 72},
+            {"session": "Milestone 2", "date": "Session 2 Goal", "role": current_user.get("target_role", "Full Stack"), "type": "Behavioral", "overall": 82, "technical": 80, "communication": 85},
+            {"session": "Hiring Bar", "date": "Target Ready", "role": current_user.get("target_role", "Full Stack"), "type": "Resume-Based", "overall": 90, "technical": 92, "communication": 88},
+        ]
+
     return {
+        "is_baseline_projection": is_baseline_projection,
         "stats": {
             "total_interviews_completed": total_completed,
             "average_interview_score": avg_interview_score,

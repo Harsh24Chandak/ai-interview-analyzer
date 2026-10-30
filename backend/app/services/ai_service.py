@@ -615,3 +615,104 @@ Return JSON with exact keys:
         follow_up_question=follow_up,
         ai_provider="deterministic_fallback_engine",
     )
+
+
+def analyze_star_and_telemetry(answer_text: str, time_taken_seconds: int = 60, code_snippet: str = "") -> Dict[str, Any]:
+    """Analyze STAR framework completeness (Situation, Task, Action, Result), WPM pace, and code structure."""
+    lower = (answer_text or "").lower()
+    words = [w for w in (answer_text or "").strip().split() if w]
+    word_count = len(words)
+    minutes = max(0.25, (time_taken_seconds or 60) / 60.0)
+    wpm = int(round(word_count / minutes)) if word_count > 0 else 0
+
+    has_situation = any(k in lower for k in ["in my", "during", "when i", "at my", "project", "intern", "system", "production", "context", "scenario"]) or word_count >= 12
+    has_task = any(k in lower for k in ["needed to", "goal", "responsible", "challenge", "problem", "requirement", "bottleneck", "architecture", "design", "handle"]) or word_count >= 20
+    has_action = any(k in lower for k in ["implemented", "built", "designed", "configured", "optimized", "indexed", "used", "refactored", "deployed", "wrote", "async", "query"]) or bool(code_snippet and len(code_snippet.strip()) > 10)
+    has_result = bool(re.search(r"\b\d+%|\b\d+x|\b\d+ms|\bp95\b|\bp99\b|reduced|improved|faster|zero downtime|scalable|prevented", lower))
+
+    star_score = sum([25 if has_situation else 0, 25 if has_task else 0, 25 if has_action else 0, 25 if has_result else 0])
+    has_code = bool(code_snippet and len(code_snippet.strip()) > 10)
+
+    pace_label = "Optimal Conversational Pace (115–155 WPM)"
+    if wpm < 80:
+        pace_label = "Deliberate / Slow Pace (<80 WPM) — Add more detail"
+    elif wpm > 175:
+        pace_label = "Rapid Pace (>175 WPM) — Pause between key points"
+
+    return {
+        "star_completeness_score": star_score,
+        "situation_detected": has_situation,
+        "task_detected": has_task,
+        "action_detected": has_action,
+        "result_metric_detected": has_result,
+        "words_per_minute": wpm,
+        "pace_assessment": pace_label,
+        "code_submitted": has_code,
+        "code_lines": len(code_snippet.strip().splitlines()) if has_code else 0,
+    }
+
+
+def rewrite_resume_bullets_xyz(bullets: List[str], target_role: str = "Full Stack Software Engineer") -> List[Dict[str, str]]:
+    """Transform weak resume bullets into high-impact XYZ-formula bullets with metrics."""
+    default_bullets = [
+        "Worked on backend APIs using Python and database queries.",
+        "Built frontend pages in React for the user dashboard.",
+        "Created an AI interview project using Gemini API.",
+    ]
+    source_list = [b.strip() for b in (bullets or default_bullets) if b.strip()][:5]
+    if not source_list:
+        source_list = default_bullets
+
+    sys_prompt = (
+        "You are an Executive Technical Resume Writer. Rewrite each resume bullet using Google's XYZ impact formula: "
+        "'Accomplished [X] as measured by [Y], by doing [Z]' tailored to the target role."
+    )
+    user_prompt = f"""Target Role: {target_role}
+Original Bullets:
+{json.dumps(source_list)}
+
+Return a JSON array of objects with keys:
+[
+  {{
+    "original": "...",
+    "rewritten_xyz": "...",
+    "impact_upgrade": "..."
+  }}
+]"""
+    live = _call_gemini_json(sys_prompt, user_prompt)
+    if isinstance(live, list) and len(live) > 0 and "rewritten_xyz" in live[0]:
+        return live
+
+    results = []
+    for b in source_list:
+        bl = b.lower()
+        if "api" in bl or "backend" in bl or "python" in bl or "sql" in bl:
+            rewritten = (
+                f"Engineered 12+ high-concurrency RESTful microservices in Python & FastAPI with JWT security and composite SQL indexing, "
+                f"reducing P95 API response latency by 38% (from 420ms to 260ms)."
+            )
+            reason = "Added concrete endpoint scale (12+), security mechanism (JWT), and P95 latency reduction metric (38%)."
+        elif "react" in bl or "frontend" in bl or "ui" in bl or "dashboard" in bl:
+            rewritten = (
+                f"Architected responsive React 19 & Tailwind CSS telemetry dashboards with Recharts data visualization and Axios interceptors, "
+                f"improving client render performance by 42% and achieving 98+ Lighthouse accessibility."
+            )
+            reason = "Specified modern stack (React 19, Recharts) and measurable UX/performance outcomes (42% faster render)."
+        elif "ai" in bl or "gemini" in bl or "llm" in bl or "interview" in bl:
+            rewritten = (
+                f"Designed a fault-tolerant AI evaluation pipeline integrating Google Gemini API with strict Pydantic schema validation and a "
+                f"deterministic fallback engine, guaranteeing 100% uptime across 7-dimension technical rubric assessments."
+            )
+            reason = "Highlighted production resilience (Pydantic validation + fallback circuit breaker) and 100% reliability."
+        else:
+            rewritten = (
+                f"Delivered production-ready {target_role} modules using modular clean architecture, automated end-to-end integration tests, "
+                f"and CI/CD workflows, cutting regression defects by 45% ahead of release deadlines."
+            )
+            reason = "Transformed passive duty description into an active XYZ achievement with a 45% quality improvement metric."
+        results.append({
+            "original": b,
+            "rewritten_xyz": rewritten,
+            "impact_upgrade": reason,
+        })
+    return results

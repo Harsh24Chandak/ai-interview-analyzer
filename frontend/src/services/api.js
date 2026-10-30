@@ -13,9 +13,7 @@ api.interceptors.request.use((config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-  } catch (e) {
-    // Ignore storage errors
-  }
+  } catch (e) {}
   return config;
 });
 
@@ -23,6 +21,7 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   demoLogin: () => api.post('/auth/demo'),
+  seedSampleData: () => api.post('/auth/seed-sample-data'),
   getCurrentUser: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
   changePassword: (data) => api.post('/auth/change-password', data),
@@ -34,6 +33,7 @@ export const resumeAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
   analyzeResume: (data) => api.post('/resumes/analyze', data),
+  rewriteBullets: (data) => api.post('/resumes/rewrite-bullets', data),
   listResumes: () => api.get('/resumes'),
 };
 

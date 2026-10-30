@@ -16,6 +16,7 @@ from app.services.ai_service import (
     generate_interview_questions_with_ai,
     evaluate_answer_with_ai,
     count_filler_words,
+    analyze_star_and_telemetry,
 )
 
 router = APIRouter(prefix="/interviews", tags=["AI Mock Interviews & Evaluation"])
@@ -200,7 +201,9 @@ def submit_and_evaluate_answer(
             raise HTTPException(status_code=404, detail="Question not found in this interview session.")
 
         q_dict = parse_json_fields(row_to_dict(q_row), ["expected_key_points"])
+        combined_ans = req.answer_text.strip() + (f"\n\n[Submitted Code / Architecture]:\n{req.code_snippet.strip()}" if getattr(req, "code_snippet", None) and req.code_snippet.strip() else "")
         filler_info = count_filler_words(req.answer_text)
+        star_telemetry = analyze_star_and_telemetry(req.answer_text, req.time_taken_seconds, getattr(req, "code_snippet", "") or "")
         word_count = len(req.answer_text.strip().split())
 
         # Upsert answer if re-submitting
@@ -239,7 +242,7 @@ def submit_and_evaluate_answer(
             question_topic=q_dict["topic"],
             expected_key_points=q_dict["expected_key_points"],
             sample_answer=q_dict["sample_answer"],
-            candidate_answer=req.answer_text.strip(),
+            candidate_answer=combined_ans,
             job_role=s_row["job_role"],
         )
 
@@ -327,6 +330,7 @@ def submit_and_evaluate_answer(
         "message": "Answer evaluated successfully.",
         "evaluation": eval_formatted,
         "filler_word_analysis": filler_info,
+        "star_telemetry": star_telemetry,
         "follow_up_question": created_follow_up,
         "session": session_detail,
     }

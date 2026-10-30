@@ -43,103 +43,110 @@ export default function DashboardLayout({ children }) {
   const isLight = theme === 'light';
 
   return (
-    <div className={`min-h-screen flex ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'}`}>
+    <div className={`min-h-screen flex ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#060913] text-slate-100'}`}>
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 border-r transition-transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-72 border-r transition-transform lg:translate-x-0 flex flex-col justify-between ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900/95 border-slate-800/80'}`}
+        } ${isLight ? 'bg-white border-slate-200' : 'bg-[#0b101e] border-slate-800/80'}`}
       >
-        <div className="flex items-center justify-between h-16 px-5 border-b border-slate-800/60">
-          <Link to="/dashboard" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-bold text-sm tracking-tight block">AI Interview</span>
-              <span className="text-[11px] text-indigo-400 font-medium block">Career Intelligence</span>
-            </div>
-          </Link>
-          <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1.5 rounded-lg text-slate-400">
-            <X className="w-5 h-5" />
-          </button>
+        <div>
+          <div className="flex items-center justify-between h-20 px-6 border-b border-slate-800/70">
+            <Link to="/dashboard" className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/35">
+                <Sparkles className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="font-extrabold text-lg tracking-tight block leading-tight">AI Interview</span>
+                <span className="text-xs text-indigo-400 font-semibold block">Career Intelligence v3.0</span>
+              </div>
+            </Link>
+            <button onClick={() => setMobileOpen(false)} className="lg:hidden p-2 rounded-xl text-slate-400">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <nav className="p-4 space-y-1.5">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const active = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-[15px] font-semibold transition-all ${
+                    active
+                      ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-600/30'
+                      : isLight
+                      ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        <nav className="p-3 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  active
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
-                    : isLight
-                    ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800/60">
-          <div className="flex items-center justify-between mb-3">
+        <div className="p-5 border-t border-slate-800/70 space-y-3">
+          <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
             <div className="truncate">
-              <p className="text-sm font-semibold truncate">{user?.full_name || 'Candidate'}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.target_role || 'Software Engineer'}</p>
+              <p className="text-base font-bold truncate">{user?.full_name || 'Candidate'}</p>
+              <p className="text-xs text-slate-400 truncate mt-0.5">{user?.target_role || 'Full Stack Engineer'}</p>
             </div>
             <button
               onClick={toggleTheme}
               title="Toggle Dark/Light Theme"
-              className="p-2 rounded-lg border border-slate-700/80 text-slate-400 hover:text-white"
+              className="p-2.5 rounded-xl border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800 shrink-0"
             >
-              {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              {isLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
             </button>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:bg-rose-500/10 border border-rose-500/20"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-rose-400 hover:bg-rose-500/15 border border-rose-500/30 transition-colors cursor-pointer"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-4 h-4" />
             Sign Out
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:pl-72 flex flex-col min-w-0">
         <header
-          className={`sticky top-0 z-30 h-16 px-6 border-b flex items-center justify-between backdrop-blur-md ${
-            isLight ? 'bg-white/85 border-slate-200' : 'bg-slate-950/80 border-slate-800/80'
+          className={`sticky top-0 z-30 h-20 px-6 lg:px-10 border-b flex items-center justify-between backdrop-blur-md ${
+            isLight ? 'bg-white/90 border-slate-200' : 'bg-[#060913]/85 border-slate-800/80'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 rounded-lg text-slate-400">
-              <Menu className="w-5 h-5" />
+          <div className="flex items-center gap-4">
+            <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 rounded-xl text-slate-400">
+              <Menu className="w-6 h-6" />
             </button>
-            <h1 className="text-base font-semibold tracking-tight">
-              {NAV_ITEMS.find((n) => location.pathname.startsWith(n.path))?.label || 'Workspace'}
-            </h1>
+            <div>
+              <h1 className="text-xl font-extrabold tracking-tight">
+                {NAV_ITEMS.find((n) => location.pathname.startsWith(n.path))?.label || 'Workspace'}
+              </h1>
+              <p className="text-xs text-slate-400 hidden sm:block">
+                AI Career Readiness • STAR Telemetry • Live Code & Rubric Engine
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Link
               to="/interview/setup"
-              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/30"
             >
-              <Mic className="w-3.5 h-3.5" />
+              <Mic className="w-4 h-4" />
               Quick Mock Interview
             </Link>
           </div>
         </header>
 
-        <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-6 lg:p-10 w-full max-w-[1600px] mx-auto">
           {children || <Outlet />}
         </main>
       </div>

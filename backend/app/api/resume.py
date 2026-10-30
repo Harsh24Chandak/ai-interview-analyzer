@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from app.api.deps import get_current_user
 from app.database.connection import db_session
 from app.database.models import parse_json_fields, row_to_dict
-from app.schemas.api_schemas import ResumeAnalyzeRequest
-from app.services.ai_service import analyze_resume_with_ai
+from app.schemas.api_schemas import ResumeAnalyzeRequest, BulletRewriteRequest
+from app.services.ai_service import analyze_resume_with_ai, rewrite_resume_bullets_xyz
 from app.services.resume_parser import extract_text_from_bytes, extract_structured_resume_metadata
 
 router = APIRouter(prefix="/resumes", tags=["Resume Intelligence"])
@@ -239,3 +239,14 @@ def list_user_resumes(current_user: dict = Depends(get_current_user)):
         "latest_resume": resumes[0] if resumes else None,
         "latest_analysis": analyses[0] if analyses else None,
     }
+
+
+@router.post("/rewrite-bullets")
+def rewrite_bullets_endpoint(
+    req: BulletRewriteRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Rewrite weak resume bullets into quantified XYZ-formula impact statements."""
+    target_role = req.target_role or current_user.get("target_role") or "Full Stack Software Engineer"
+    rewrites = rewrite_resume_bullets_xyz(req.bullets, target_role)
+    return {"target_role": target_role, "rewrites": rewrites}

@@ -53,6 +53,7 @@ class StartInterviewRequest(BaseModel):
     experience_level: str = "Entry Level (0-2 Years)"
     interview_type: str = "Technical"  # Technical, HR, Behavioral, Situational, Resume-Based, Job-Description-Based
     difficulty: str = "Medium"  # Easy, Medium, Hard
+    company_style: Optional[str] = "High-Growth AI SaaS (Linear / Vercel Style)"
     question_count: int = Field(default=5, ge=1, le=15)
     resume_id: Optional[int] = None
     job_description_id: Optional[int] = None
@@ -64,6 +65,7 @@ class SubmitAnswerRequest(BaseModel):
     answer_mode: str = "text"  # text or voice
     time_taken_seconds: int = Field(default=60, ge=0)
     generate_follow_up: bool = False
+    code_snippet: Optional[str] = ""
 
 
 class CompleteInterviewRequest(BaseModel):
@@ -127,3 +129,19 @@ class AIAnswerEvaluationOutput(BaseModel):
     actionable_tips: List[str] = []
     follow_up_question: str = ""
     ai_provider: str = "fallback"
+
+
+class BulletRewriteRequest(BaseModel):
+    bullets: List[str] = Field(default_factory=list)
+    target_role: str = "Full Stack Software Engineer"
+
+
+class StartInterviewV3Request(BaseModel):
+    job_role: str = Field(..., min_length=2)
+    experience_level: str = "Entry Level (0-2 Years)"
+    interview_type: str = "Technical"
+    difficulty: str = "Medium"
+    company_style: str = "High-Growth AI SaaS (Linear / Vercel Style)"
+    question_count: int = Field(default=5, ge=1, le=15)
+    resume_id: Optional[int] = None
+    job_description_id: Optional[int] = None
